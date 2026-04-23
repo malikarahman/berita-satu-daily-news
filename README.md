@@ -6,7 +6,7 @@ Internal newsroom dashboard for generated daily weather news articles. The app s
 
 - **Frontend**: Next.js App Router dashboard in `src/app` and `src/components`.
 - **Backend**: Next.js API routes for articles, manual runs, scheduled-run testing, and BMKG previews.
-- **Database**: SQLite with Prisma ORM.
+- **Database**: Neon Postgres with Prisma ORM.
 - **Weather ingestion**: `src/lib/bmkg` fetches BMKG open forecast JSON and normalizes it into an internal weather object.
 - **Article generation**: `src/lib/articles` selects Template 1, 2, or 3, then generates Indonesian online-news-style copy.
 - **Scheduling**: `node-cron` job in `src/lib/scheduler/dailyWeatherJob.ts`; use `npm run schedule` for a standalone scheduler process or enable `SCHEDULE_ENABLED=true` for app startup.
@@ -58,7 +58,7 @@ Core tables:
 - `articles`: source metadata, category, location/date, generated title/body/preview, normalized weather JSON, run type, trigger identity, generation time, requested publish time, status, editor, notes, timestamps.
 - `activity_logs`: article workflow history with action, previous/new status, actor, note, timestamp.
 - `users`: local mock editor identities.
-- `system_logs`: local operational error log for API, BMKG, and scheduler failures.
+- `system_logs`: operational error log for API, BMKG, and scheduler failures.
 
 Allowed statuses:
 
@@ -115,13 +115,36 @@ If BMKG/network access fails, the app stores a warning and uses fallback sample 
 
 ```bash
 cd /Users/malika/Documents/Playground/berita-satu-daily-news
+# copy .env.example to .env and paste your Neon pooled/direct URLs
 npm run setup
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
-The setup command copies `.env.example` to `.env` if needed, installs dependencies, creates the SQLite database, runs Prisma migration, and seeds preview data.
+The setup command copies `.env.example` to `.env` if needed, installs dependencies, generates Prisma Client, applies the checked-in Postgres migration, and seeds your Neon database.
+
+## Neon Setup
+
+1. Create a Neon project and database.
+2. Copy two connection strings from Neon:
+   - pooled connection string for app runtime
+   - direct connection string for Prisma migrations
+3. Put them in `.env`:
+
+```env
+DATABASE_URL="postgresql://...pooler.../neondb?sslmode=require&channel_binding=require&pgbouncer=true"
+DIRECT_URL="postgresql://...direct-host.../neondb?sslmode=require&channel_binding=require"
+```
+
+4. Run:
+
+```bash
+npm run prisma:migrate
+npm run db:seed
+```
+
+For Vercel, add the same `DATABASE_URL` and `DIRECT_URL` in Project Settings -> Environment Variables, then redeploy.
 
 ## Manual Run Article Flow
 
@@ -173,3 +196,8 @@ The seed file creates:
 - `[CUACA] Bogor - 22 April 2026`
 
 Seeded statuses include `Pending Review`, `Approved`, and `Revision Needed`. Seeded run types include `Scheduled` and `Manual`.
+
+## Notes
+
+- If `DATABASE_URL` is missing or still points to the old `file:...` SQLite style, the app falls back to in-memory demo article data instead of crashing.
+- For real persistence on localhost and Vercel, use Neon URLs in `.env` and Vercel environment settings.

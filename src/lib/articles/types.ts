@@ -61,7 +61,7 @@ export type RunArticleInput = {
   intendedPublishDate: string;
   intendedPublishTime: string;
   templatePreference?: TemplatePreference;
-  assignedEditor?: string;
-  notes?: string;
+  assignedEditor?: string | null;
+  notes?: string | null;
   triggeredBy?: string;
 };
