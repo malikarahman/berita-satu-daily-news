@@ -162,32 +162,43 @@ export function ArticleDashboard() {
       if (!response.ok) throw new Error(payload.error);
       setArticles(payload.articles);
       setSummary(payload.summary);
-      if (selected) {
-        const refreshed = payload.articles.find((item: Article) => item.id === selected.id);
-        setSelected(refreshed ?? null);
-      }
+      setSelected((prev) => (prev ? payload.articles.find((item: Article) => item.id === prev.id) ?? null : null));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Gagal memuat daftar artikel.");
     } finally {
       setLoading(false);
     }
-  }, [queryString, selected]);
+  }, [queryString]);
 
   useEffect(() => {
     loadArticles();
   }, [loadArticles]);
 
   useEffect(() => {
-    function handlePopState() {
+    function syncSelectedFromUrl() {
       const url = new URL(window.location.href);
-      if (!url.searchParams.get("article")) {
+      const rawArticleId = url.searchParams.get("article");
+      if (!rawArticleId) {
         setSelected(null);
+        return;
       }
+
+      const articleId = Number(rawArticleId);
+      if (!Number.isFinite(articleId)) {
+        setSelected(null);
+        return;
+      }
+
+      setSelected((prev) => {
+        if (prev?.id === articleId) return prev;
+        return articles.find((item) => item.id === articleId) ?? null;
+      });
     }
 
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+    syncSelectedFromUrl();
+    window.addEventListener("popstate", syncSelectedFromUrl);
+    return () => window.removeEventListener("popstate", syncSelectedFromUrl);
+  }, [articles]);
 
   function openArticle(article: Article) {
     const url = new URL(window.location.href);
@@ -199,12 +210,12 @@ export function ArticleDashboard() {
   }
 
   function closeArticle() {
+    setSelected(null);
     const url = new URL(window.location.href);
     if (url.searchParams.get("article")) {
-      window.history.back();
-      return;
+      url.searchParams.delete("article");
+      window.history.replaceState({}, "", url);
     }
-    setSelected(null);
   }
 
   async function updateArticle(
