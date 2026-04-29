@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Berita Satu Daily News",
-  description: "Internal newsroom dashboard for generated weather articles."
+  title: "Berita Satu: Cuaca Hari Ini",
+  description: "Dashboard internal BeritaSatu untuk workflow artikel cuaca harian berbasis BMKG."
 };
 
 export default function RootLayout({

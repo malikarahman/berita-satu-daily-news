@@ -1,65 +1,70 @@
 -- CreateTable
 CREATE TABLE "articles" (
-    "id" SERIAL NOT NULL,
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "source_name" TEXT NOT NULL,
     "source_url" TEXT NOT NULL,
+    "data_source" TEXT NOT NULL DEFAULT 'BMKG',
     "category" TEXT NOT NULL,
     "location" TEXT NOT NULL,
-    "date" TIMESTAMP(3) NOT NULL,
+    "date" DATETIME NOT NULL,
     "day_name" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "preview_text" TEXT NOT NULL,
     "body_text" TEXT NOT NULL,
     "weather_payload_json" TEXT NOT NULL,
     "draft_url" TEXT,
+    "template_preference" TEXT,
+    "selected_template" TEXT,
+    "editorial_notes" TEXT,
+    "data_completeness_note" TEXT,
     "run_type" TEXT NOT NULL,
     "triggered_by" TEXT NOT NULL,
-    "generation_time" TIMESTAMP(3) NOT NULL,
-    "requested_publish_datetime" TIMESTAMP(3) NOT NULL,
+    "generation_time" DATETIME NOT NULL,
+    "requested_publish_datetime" DATETIME NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'Pending Review',
     "editor_name" TEXT,
     "notes" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "articles_pkey" PRIMARY KEY ("id")
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" DATETIME NOT NULL
 );
 
 -- CreateTable
 CREATE TABLE "activity_logs" (
-    "id" SERIAL NOT NULL,
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "article_id" INTEGER NOT NULL,
     "action" TEXT NOT NULL,
     "previous_status" TEXT,
     "new_status" TEXT,
     "actor_name" TEXT NOT NULL,
     "note" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "activity_logs_pkey" PRIMARY KEY ("id")
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "activity_logs_article_id_fkey" FOREIGN KEY ("article_id") REFERENCES "articles" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
 CREATE TABLE "users" (
-    "id" SERIAL NOT NULL,
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL,
     "role" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
-CREATE TABLE "system_logs" (
-    "id" SERIAL NOT NULL,
-    "level" TEXT NOT NULL,
-    "scope" TEXT NOT NULL,
+CREATE TABLE "error_logs" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "error_type" TEXT NOT NULL,
+    "module" TEXT NOT NULL,
+    "action" TEXT NOT NULL,
     "message" TEXT NOT NULL,
-    "metadata" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "system_logs_pkey" PRIMARY KEY ("id")
+    "technical_details" TEXT,
+    "article_id" INTEGER,
+    "location" TEXT,
+    "source_url" TEXT,
+    "actor" TEXT,
+    "result" TEXT,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "error_logs_article_id_fkey" FOREIGN KEY ("article_id") REFERENCES "articles" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateIndex
@@ -81,10 +86,13 @@ CREATE INDEX "activity_logs_article_id_idx" ON "activity_logs"("article_id");
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
-CREATE INDEX "system_logs_level_idx" ON "system_logs"("level");
+CREATE INDEX "error_logs_module_idx" ON "error_logs"("module");
 
 -- CreateIndex
-CREATE INDEX "system_logs_scope_idx" ON "system_logs"("scope");
+CREATE INDEX "error_logs_action_idx" ON "error_logs"("action");
 
--- AddForeignKey
-ALTER TABLE "activity_logs" ADD CONSTRAINT "activity_logs_article_id_fkey" FOREIGN KEY ("article_id") REFERENCES "articles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- CreateIndex
+CREATE INDEX "error_logs_article_id_idx" ON "error_logs"("article_id");
+
+-- CreateIndex
+CREATE INDEX "error_logs_location_idx" ON "error_logs"("location");

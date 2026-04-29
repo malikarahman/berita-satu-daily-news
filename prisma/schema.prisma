@@ -3,15 +3,15 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model Article {
   id                       Int           @id @default(autoincrement())
   sourceName               String        @map("source_name")
   sourceUrl                String        @map("source_url")
+  dataSource               String        @default("BMKG") @map("data_source")
   category                 String
   location                 String
   date                     DateTime
@@ -21,6 +21,10 @@ model Article {
   bodyText                 String        @map("body_text")
   weatherPayloadJson       String        @map("weather_payload_json")
   draftUrl                 String?       @map("draft_url")
+  templatePreference       String?       @map("template_preference")
+  selectedTemplate         String?       @map("selected_template")
+  editorialNotes           String?       @map("editorial_notes")
+  dataCompletenessNote     String?       @map("data_completeness_note")
   runType                  String        @map("run_type")
   triggeredBy              String        @map("triggered_by")
   generationTime           DateTime      @map("generation_time")
@@ -31,6 +35,7 @@ model Article {
   createdAt                DateTime      @default(now()) @map("created_at")
   updatedAt                DateTime      @updatedAt @map("updated_at")
   activityLogs             ActivityLog[]
+  errorLogs                ErrorLog[]
 
   @@index([date])
   @@index([location])
@@ -64,15 +69,24 @@ model User {
   @@map("users")
 }
 
-model SystemLog {
-  id        Int      @id @default(autoincrement())
-  level     String
-  scope     String
-  message   String
-  metadata  String?
-  createdAt DateTime @default(now()) @map("created_at")
+model ErrorLog {
+  id               Int       @id @default(autoincrement())
+  errorType        String    @map("error_type")
+  module           String
+  action           String
+  message          String
+  technicalDetails String?   @map("technical_details")
+  articleId        Int?      @map("article_id")
+  location         String?
+  sourceUrl        String?   @map("source_url")
+  actor            String?
+  result           String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  article          Article?  @relation(fields: [articleId], references: [id], onDelete: SetNull)
 
-  @@index([level])
-  @@index([scope])
-  @@map("system_logs")
+  @@index([module])
+  @@index([action])
+  @@index([articleId])
+  @@index([location])
+  @@map("error_logs")
 }

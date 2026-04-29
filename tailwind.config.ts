@@ -9,14 +9,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        brand: {
+          red: "#d21e24",
+          navy: "#062569",
+          gold: "#fdb447",
+          goldSoft: "#fff6e6",
+          redSoft: "#fdf0f1",
+          navySoft: "#edf1fb"
+        },
         newsroom: {
-          ink: "#14171f",
-          muted: "#667085",
-          line: "#d9dee8",
-          surface: "#f7f8fa",
-          red: "#b42318",
-          amber: "#b54708",
+          ink: "#162033",
+          muted: "#59657b",
+          line: "#d8deea",
+          surface: "#f5f7fb",
+          white: "#ffffff",
           green: "#067647",
+          amber: "#b54708",
           blue: "#175cd3"
         }
       },

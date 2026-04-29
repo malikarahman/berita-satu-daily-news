@@ -10,6 +10,7 @@ const updateSchema = z.object({
   status: z.enum(ARTICLE_STATUSES).optional(),
   notes: z.string().nullable().optional(),
   editorName: z.string().nullable().optional(),
+  bodyText: z.string().optional(),
   actorName: z.string().optional()
 });
 
@@ -37,6 +38,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     console.error("articles:update", error);
     await logSystemError("articles:update", error, { id: params.id });
     const message = error instanceof Error ? error.message : "Gagal memperbarui artikel.";
-    return NextResponse.json({ error: message }, { status: message === "Article not found" ? 404 : 400 });
+    return NextResponse.json(
+      { error: message },
+      { status: message === "Artikel tidak ditemukan." ? 404 : 400 }
+    );
   }
 }

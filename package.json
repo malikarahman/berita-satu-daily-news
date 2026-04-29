@@ -10,8 +10,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:studio": "prisma studio",
-    "db:seed": "tsx -r tsconfig-paths/register prisma/seed.ts",
-    "setup": "test -f .env || cp .env.example .env; npm install && prisma generate && prisma migrate dev --name init && npm run db:seed",
+    "seed": "tsx -r tsconfig-paths/register prisma/seed.ts",
+    "db:seed": "npm run seed",
+    "setup": "test -f .env || cp .env.example .env; npm install && prisma generate && prisma migrate dev --name init && npm run seed",
     "schedule": "tsx -r tsconfig-paths/register scripts/scheduler.ts"
   },
   "dependencies": {

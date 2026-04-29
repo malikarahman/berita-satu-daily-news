@@ -14,23 +14,24 @@ export async function POST(request: NextRequest) {
     const article = await runManualArticle(body as RunArticleInput);
     return NextResponse.json({ article }, { status: 201 });
   } catch (error) {
-    console.error("articles:manual-run", error);
-    await logSystemError("articles:manual-run", error, {
-      location: typeof body?.location === "string" ? body.location : null,
-      actor: typeof body?.triggeredBy === "string" ? body.triggeredBy : null
+    await logSystemError("articles:manual-generate", error, {
+      location: typeof body.location === "string" ? body.location : null,
+      actor: typeof body.triggeredBy === "string" ? body.triggeredBy : null
     });
+
     if (error instanceof ZodError) {
       return NextResponse.json(
-        { error: "Form Run Article belum lengkap.", details: error.flatten() },
+        { error: "Please fill in all required fields before running article generation." },
         { status: 422 }
       );
     }
+
     return NextResponse.json(
       {
         error:
           error instanceof Error
             ? error.message
-            : "Gagal menjalankan pembuatan artikel. Periksa koneksi BMKG atau coba lagi."
+            : "Gagal menjalankan pembuatan artikel manual."
       },
       { status: 500 }
     );

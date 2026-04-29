@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchNormalizedWeather } from "@/lib/bmkg/fetcher";
-import { configuredLocations } from "@/lib/bmkg/locations";
+import { configuredLocations, searchConfiguredLocations } from "@/lib/bmkg/locations";
 import { logSystemError } from "@/lib/db/systemLog";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +8,11 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     const location = request.nextUrl.searchParams.get("location");
+    const search = request.nextUrl.searchParams.get("search");
     if (!location) {
-      return NextResponse.json({ locations: configuredLocations() });
+      return NextResponse.json({
+        locations: search ? searchConfiguredLocations(search) : configuredLocations()
+      });
     }
 
     const date = request.nextUrl.searchParams.get("date");

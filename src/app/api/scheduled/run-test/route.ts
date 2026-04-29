@@ -18,14 +18,13 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("articles:automated-generate", error);
-    await logSystemError("articles:automated-generate", error);
+    await logSystemError("batch:run-test", error);
     return NextResponse.json(
       {
         error:
           error instanceof Error
             ? error.message
-            : "Gagal menjalankan automated batch generation."
+            : "Automated batch generation failed for one or more configured locations."
       },
       { status: 500 }
     );

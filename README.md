@@ -1,203 +1,192 @@
-# Berita Satu Daily News
+# Berita Satu: Cuaca Hari Ini
 
-Internal newsroom dashboard for generated daily weather news articles. The app starts with BMKG weather ingestion, Indonesian article drafting, and an editorial approval workflow. It intentionally stops before CMS publishing so editors can review and approve drafts first.
+Dashboard internal untuk BeritaSatu yang membuat, menampilkan, dan mereview draft artikel cuaca berbasis BMKG.
 
-## Architecture Overview
+## Ringkasan
 
-- **Frontend**: Next.js App Router dashboard in `src/app` and `src/components`.
-- **Backend**: Next.js API routes for articles, manual runs, scheduled-run testing, and BMKG previews.
-- **Database**: Neon Postgres with Prisma ORM.
-- **Weather ingestion**: `src/lib/bmkg` fetches BMKG open forecast JSON and normalizes it into an internal weather object.
-- **Article generation**: `src/lib/articles` selects Template 1, 2, or 3, then generates Indonesian online-news-style copy.
-- **Scheduling**: `node-cron` job in `src/lib/scheduler/dailyWeatherJob.ts`; use `npm run schedule` for a standalone scheduler process or enable `SCHEDULE_ENABLED=true` for app startup.
-- **Future extensibility**: BMKG, templates, scheduler, API, and database layers are separated so Google Docs/CMS/RBAC/analytics can be added later.
+Versi terbaru memakai dua mode generation:
 
-## Folder Structure
+- `Run Article` untuk custom generation berdasarkan cakupan yang dipilih editor
+- `Automated Generate Articles` untuk batch generation manual sekali klik
 
-```text
-berita-satu-daily-news/
-  prisma/
-    schema.prisma
-    seed.ts
-  scripts/
-    scheduler.ts
-  src/
-    app/
-      api/
-        articles/
-        bmkg/
-      globals.css
-      layout.tsx
-      page.tsx
-    components/
-      ArticleDashboard.tsx
-    lib/
-      articles/
-        date.ts
-        generator.ts
-        service.ts
-        templateSelector.ts
-        types.ts
-      bmkg/
-        fallback.ts
-        fetcher.ts
-        locations.ts
-      db/
-        prisma.ts
-      scheduler/
-        dailyWeatherJob.ts
-    instrumentation.ts
-  .env.example
-  README.md
-```
+Sistem **tidak lagi berjalan otomatis pada pukul 05:00 WIB**. Cron aktif dinonaktifkan dan alurnya sudah diubah menjadi manual batch trigger dari dashboard atau API.
 
-## Database Schema
+## Fitur utama
 
-Core tables:
+- Dashboard artikel dengan filter, search, dan summary cards
+- Sidebar collapsible agar tabel artikel lebih lebar
+- `Run Article` dengan cakupan:
+  - Single Region
+  - Multiple Publication Areas
+  - Multiple Regions
+  - All Region: Jabodetabek
+- `Automated Generate Articles` untuk batch:
+  - Jakarta
+  - Bogor
+  - Depok
+  - Tangerang
+  - Bekasi
+  - Jabodetabek
+- Article detail / View Draft dengan:
+  - editable generated article body
+  - Save Changes
+  - copy selected text
+  - status update
+  - editor assignment
+  - Catatan Redaksi
+  - Catatan
+- Documentation page
+- Logs page
 
-- `articles`: source metadata, category, location/date, generated title/body/preview, normalized weather JSON, run type, trigger identity, generation time, requested publish time, status, editor, notes, timestamps.
-- `activity_logs`: article workflow history with action, previous/new status, actor, note, timestamp.
-- `users`: local mock editor identities.
-- `system_logs`: operational error log for API, BMKG, and scheduler failures.
+## Shared pipeline
 
-Allowed statuses:
+Semua mode generation memakai pipeline yang sama:
 
-- `Generated`
-- `Pending Review`
-- `Approved`
-- `Revision Needed`
-- `Rejected`
+`location selection resolver -> BMKG fetcher -> BMKG normalizer -> aggregator -> template selector -> article generator -> database save -> activity log`
 
-New manual and scheduled articles default to `Pending Review`.
+## Tech stack
 
-## BMKG Ingestion Approach
+- Next.js App Router
+- TypeScript
+- Prisma
+- SQLite
+- Tailwind CSS
 
-The source layer uses BMKG open weather data:
+## Struktur penting
 
-- Public weather site: `https://cuaca.bmkg.go.id/`
-- JSON forecast endpoint: `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4={kode_wilayah_tingkat_iv}`
+- `src/components/ArticleDashboard.tsx` - dashboard utama, Run Article, Automated Generate Articles, View Draft
+- `src/components/DocumentationPage.tsx` - halaman dokumentasi internal
+- `src/components/LogPage.tsx` - halaman log
+- `src/components/layout/AppShell.tsx` - shell + sidebar collapsible
+- `src/data/coverageGroups.ts` - region groups dan publication area editorial
+- `src/data/locationGroups.ts` - lokasi BMKG representatif internal
+- `src/lib/bmkg/fetcher.ts` - fetch + normalize + aggregate BMKG
+- `src/lib/articles/templateSelector.ts` - pemilihan template
+- `src/lib/articles/generator.ts` - generator judul dan body artikel
+- `src/lib/articles/service.ts` - service utama manual run, batch run, workflow update, logs
+- `prisma/schema.prisma` - schema database
+- `prisma/seed.ts` - seed data
 
-The adapter in `src/lib/bmkg/fetcher.ts`:
-
-1. Loads configured locations and representative `adm4` area codes from `locations.ts`.
-2. Fetches BMKG forecasts per area.
-3. Normalizes weather into:
-
-```json
-{
-  "source": "BMKG",
-  "source_url": "https://cuaca.bmkg.go.id/",
-  "location": "Tangerang Selatan",
-  "date": "2026-04-22",
-  "day_name": "Rabu",
-  "main_condition": "hujan ringan hingga sedang",
-  "temperature_min": 24,
-  "temperature_max": 33,
-  "humidity_min": 69,
-  "humidity_max": 96,
-  "areas": [],
-  "time_segments": []
-}
-```
-
-If BMKG/network access fails, the app stores a warning and uses fallback sample weather so local workflows remain testable.
-
-## UI Layout Plan
-
-- Top navbar with product name.
-- Summary cards for today, pending review, approved, revision needed, and rejected.
-- Search and filters for date, location, status, run type, and editor.
-- Article table with all required workflow columns.
-- Prominent `Run Article` modal.
-- Right-side article detail panel with preview, generated body, source link, status/editor/notes controls, editorial action buttons, and activity log.
-
-## Local Setup
+## Setup lokal
 
 ```bash
 cd /Users/malika/Documents/Playground/berita-satu-daily-news
-# copy .env.example to .env and paste your Neon pooled/direct URLs
-npm run setup
+cp .env.example .env
+npm install
+npx prisma generate
+npx prisma migrate dev
+npm run seed
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Lalu buka:
 
-The setup command copies `.env.example` to `.env` if needed, installs dependencies, generates Prisma Client, applies the checked-in Postgres migration, and seeds your Neon database.
+- [http://localhost:3000](http://localhost:3000)
 
-## Neon Setup
+## Environment
 
-1. Create a Neon project and database.
-2. Copy two connection strings from Neon:
-   - pooled connection string for app runtime
-   - direct connection string for Prisma migrations
-3. Put them in `.env`:
+Default lokal:
 
 ```env
-DATABASE_URL="postgresql://...pooler.../neondb?sslmode=require&channel_binding=require&pgbouncer=true"
-DIRECT_URL="postgresql://...direct-host.../neondb?sslmode=require&channel_binding=require"
+DATABASE_URL="file:./beritasatu-cuaca.db"
+DEFAULT_EDITOR_NAME="Editor Piket"
+BMKG_BASE_URL="https://api.bmkg.go.id/publik/prakiraan-cuaca"
+BMKG_SOURCE_URL="https://cuaca.bmkg.go.id/"
+SCHEDULE_ENABLED="false"
 ```
 
-4. Run:
+## Cara test
+
+### 1. Run Article
+
+1. buka dashboard
+2. klik `Run Article`
+3. pilih scope generation
+4. pilih template jika ingin override
+5. klik `Generate Draft`
+
+Hasil:
+
+- artikel baru masuk ke tabel
+- `run_type = Manual`
+- `status = Pending Review`
+
+### 2. Automated Generate Articles
+
+1. buka dashboard
+2. klik `Automated Generate Articles`
+3. baca daftar batch target
+4. klik `Generate Batch`
+
+Hasil:
+
+- sistem membuat artikel untuk Jakarta, Bogor, Depok, Tangerang, Bekasi, dan Jabodetabek
+- `run_type = Automated Manual`
+- `status = Pending Review`
+
+Atau lewat API:
 
 ```bash
-npm run prisma:migrate
-npm run db:seed
-```
-
-For Vercel, add the same `DATABASE_URL` and `DIRECT_URL` in Project Settings -> Environment Variables, then redeploy.
-
-## Manual Run Article Flow
-
-1. Click `Run Article`.
-2. Choose category, location, BMKG data source, publish date/time, template preference, editor, and notes.
-3. Submit the form.
-4. The server fetches latest BMKG data, normalizes it, selects or applies the requested template, creates the Indonesian draft, saves it, and logs the activity.
-5. The new article appears immediately with status `Pending Review` and run type `Manual`.
-
-## Scheduled Job Flow
-
-Default behavior:
-
-- Run time: `05:00`
-- Intended publish time: `07:00`
-- Locations: `Jakarta,Tangerang Selatan,Depok,Bekasi,Bogor`
-
-Run a standalone scheduler:
-
-```bash
-SCHEDULE_ENABLED=true npm run schedule
-```
-
-Trigger the scheduled workflow manually from the dashboard with `Test Scheduled Run`, or call:
-
-```bash
-curl -X POST http://localhost:3000/api/articles/scheduled-run \
+curl -X POST http://localhost:3000/api/articles/automated-generate \
   -H "Content-Type: application/json" \
-  -d '{"actorName":"System Test"}'
+  -d '{"actorName":"Editor Piket"}'
 ```
 
-## API Routes
+### 3. Edit draft article body
 
-- `GET /api/articles`: list articles with filters.
-- `GET /api/articles/:id`: article detail.
-- `PATCH /api/articles/:id`: update status, notes, or assigned editor.
-- `POST /api/articles/run`: manual on-demand article generation.
-- `POST /api/articles/scheduled-run`: test scheduled article generation.
-- `GET /api/bmkg?location=Jakarta`: fetch and normalize BMKG data.
+1. klik `View` di tabel artikel
+2. edit isi pada bagian `Generated Article Body`
+3. sorot teks jika ingin memakai `Copy Selected Text`
+4. klik `Save Changes`
 
-## Seed Data
+Hasil:
 
-The seed file creates:
+- `body_text` tersimpan ke database
+- activity log membuat entri `Article Body Edited`
 
-- `[CUACA] Jakarta - 22 April 2026`
-- `[CUACA] Tangerang Selatan - 22 April 2026`
-- `[CUACA] Depok - 22 April 2026`
-- `[CUACA] Bekasi - 22 April 2026`
-- `[CUACA] Bogor - 22 April 2026`
+### 4. Update status, editor, dan catatan
 
-Seeded statuses include `Pending Review`, `Approved`, and `Revision Needed`. Seeded run types include `Scheduled` and `Manual`.
+Semua aksi bisa dilakukan dari View Draft:
 
-## Notes
+- Approve
+- Mark Revision Needed
+- Reject
+- Assign Editor
+- Save `Catatan`
 
-- If `DATABASE_URL` is missing or still points to the old `file:...` SQLite style, the app falls back to in-memory demo article data instead of crashing.
-- For real persistence on localhost and Vercel, use Neon URLs in `.env` and Vercel environment settings.
+## Halaman penting
+
+- Dashboard: [http://localhost:3000](http://localhost:3000)
+- Documentation: [http://localhost:3000/documentation](http://localhost:3000/documentation)
+- Logs: [http://localhost:3000/logs](http://localhost:3000/logs)
+
+## API penting
+
+- `GET /api/articles`
+- `GET /api/articles/[id]`
+- `PATCH /api/articles/[id]`
+- `POST /api/articles/manual-generate`
+- `POST /api/articles/automated-generate`
+- `GET /api/logs`
+
+Kompatibilitas lama tetap ada:
+
+- `POST /api/articles/scheduled-run`
+- `POST /api/scheduled/run-test`
+
+Keduanya sekarang memanggil manual batch generation yang sama, bukan cron otomatis.
+
+## Catatan implementasi
+
+- `requested_publish_datetime` masih disimpan internal untuk kompatibilitas, tetapi tidak ditampilkan di UI
+- Catatan sistem dipisahkan ke `editorial_notes`
+- Catatan editor tetap disimpan di `notes`
+- Editor aktif versi ini hanya `Editor Piket`
+- Publication area di UI berada di level kota/kabupaten/kota administrasi
+- Kelurahan/desa hanya dipakai sebagai sumber BMKG internal
+
+## Keterbatasan saat ini
+
+- BMKG autocomplete publik belum diintegrasikan langsung; cakupan editorial masih memakai konfigurasi internal
+- Integrasi Google Docs dan CMS belum diaktifkan
+- Versioning body artikel belum ditambahkan; edit draft saat ini langsung memperbarui `body_text`

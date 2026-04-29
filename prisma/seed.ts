@@ -1,85 +1,131 @@
 import { PrismaClient } from "@prisma/client";
-import { generateArticle } from "../src/lib/articles/generator";
+import { DEFAULT_EDITORS } from "../src/data/editors";
+import { fetchNormalizedWeather } from "../src/lib/bmkg/fetcher";
 import { fallbackWeather } from "../src/lib/bmkg/fallback";
+import { generateArticle } from "../src/lib/articles/generator";
 
 const prisma = new PrismaClient();
+const seedDate = new Date("2026-04-27T00:00:00+07:00");
+const seedDateKey = "2026-04-27";
 
-const seedDate = new Date("2026-04-22T00:00:00");
-
-const samples = [
-  { location: "Jakarta", status: "Pending Review", runType: "Scheduled", editorName: "Editor Piket", template: "Template 2" as const },
-  { location: "Tangerang Selatan", status: "Approved", runType: "Scheduled", editorName: "Dina Pramesti", template: "Template 1" as const },
-  { location: "Depok", status: "Revision Needed", runType: "Manual", editorName: "Raka Mahendra", template: "Template 3" as const },
-  { location: "Bekasi", status: "Pending Review", runType: "Manual", editorName: "Maya Sari", template: "Auto" as const },
-  { location: "Bogor", status: "Approved", runType: "Scheduled", editorName: "Editor Piket", template: "Template 3" as const }
+const seedDefinitions = [
+  { location: "Jakarta", runType: "Automated Manual", status: "Pending Review", editorName: "Editor Piket", template: "Auto" as const },
+  { location: "Tangerang", runType: "Automated Manual", status: "Approved", editorName: "Editor Piket", template: "Template 11" as const },
+  { location: "Depok", runType: "Manual", status: "Revision Needed", editorName: "Editor Piket", template: "Template 3" as const },
+  { location: "Bekasi", runType: "Manual", status: "Pending Review", editorName: "Editor Piket", template: "Template 8" as const },
+  { location: "Bogor", runType: "Automated Manual", status: "Approved", editorName: "Editor Piket", template: "Template 7" as const }
 ];
 
+async function weatherForSeed(location: string) {
+  try {
+    return await fetchNormalizedWeather(location, seedDate);
+  } catch (error) {
+    return fallbackWeather(
+      location,
+      seedDate,
+      `Sample seed data dipakai karena BMKG belum tersedia saat seeding: ${error instanceof Error ? error.message : "unknown error"}`
+    );
+  }
+}
+
 async function main() {
+  await prisma.errorLog.deleteMany();
   await prisma.activityLog.deleteMany();
   await prisma.article.deleteMany();
-  await prisma.systemLog.deleteMany();
   await prisma.user.deleteMany();
 
   await prisma.user.createMany({
-    data: [
-      { name: "Editor Piket", role: "Editor", email: "editor.piket@beritasatu.internal" },
-      { name: "Dina Pramesti", role: "Lead Editor", email: "dina.pramesti@beritasatu.internal" },
-      { name: "Raka Mahendra", role: "Editor", email: "raka.mahendra@beritasatu.internal" },
-      { name: "Maya Sari", role: "Editor", email: "maya.sari@beritasatu.internal" }
-    ]
+    data: DEFAULT_EDITORS.map((name, index) => ({
+      name,
+      role: index === 1 ? "Lead Editor" : "Editor",
+      email: `${name.toLowerCase().replace(/\s+/g, ".")}@beritasatu.internal`
+    }))
   });
 
-  for (const [index, sample] of samples.entries()) {
-    const weather = fallbackWeather(sample.location, seedDate, "Seed data for local preview.");
-    const generated = generateArticle(weather, sample.template);
-    const generatedAt = new Date(`2026-04-22T0${Math.min(index + 5, 9)}:0${index}:00`);
+  for (const [index, definition] of seedDefinitions.entries()) {
+    const weather = await weatherForSeed(definition.location);
+    const generated = generateArticle(weather, definition.template);
     const requestedPublishDatetime =
-      sample.runType === "Scheduled"
-        ? new Date("2026-04-22T07:00:00")
-        : new Date(`2026-04-22T1${index + 1}:00:00`);
-
-    await prisma.article.create({
+      definition.runType === "Scheduled"
+        ? new Date(`${seedDateKey}T00:00:00+07:00`)
+        : new Date(`${seedDateKey}T00:00:00+07:00`);
+    const generationTime =
+      definition.runType === "Scheduled" || definition.runType === "Automated Manual"
+        ? new Date(`${seedDateKey}T05:0${index}:00+07:00`)
+        : new Date(`${seedDateKey}T13:1${index}:00+07:00`);
+    const baseNote =
+      weather.source_mode === "fallback_sample"
+        ? "Sample seed data berbasis struktur BMKG untuk preview dashboard."
+        : "Seed record dibuat dari pipeline BMKG live untuk preview dashboard.";
+    const article = await prisma.article.create({
       data: {
         sourceName: "BMKG",
-        sourceUrl: "https://cuaca.bmkg.go.id/",
+        sourceUrl: weather.source_url,
+        dataSource: "BMKG",
         category: "Cuaca",
-        location: sample.location,
-        date: seedDate,
-        dayName: "Rabu",
+        location: weather.publication_location,
+        date: new Date(`${weather.date}T00:00:00+07:00`),
+        dayName: weather.day_name,
         title: generated.title,
         previewText: generated.previewText,
         bodyText: generated.bodyText,
-        weatherPayloadJson: JSON.stringify({ ...weather, template_used: generated.templateUsed }, null, 2),
+        weatherPayloadJson: JSON.stringify({ ...weather, selected_template: generated.templateUsed }, null, 2),
         draftUrl: null,
-        runType: sample.runType,
-        triggeredBy: sample.runType === "Scheduled" ? "System" : sample.editorName,
-        generationTime: generatedAt,
+        templatePreference: definition.template,
+        selectedTemplate: generated.templateUsed,
+        editorialNotes: baseNote,
+        dataCompletenessNote: weather.data_completeness.notes,
+        runType: definition.runType,
+        triggeredBy: definition.runType === "Manual" ? definition.editorName : "Editor Piket",
+        generationTime,
         requestedPublishDatetime,
-        status: sample.status,
-        editorName: sample.editorName,
+        status: definition.status,
+        editorName: definition.editorName,
         notes:
-          sample.status === "Revision Needed"
-            ? "Perlu periksa ulang frasa intensitas hujan sebelum approval."
-            : sample.status === "Approved"
-              ? "Sudah dicek redaksi."
+          definition.status === "Revision Needed"
+            ? "Perlu rapikan lead dan cek ulang pemilihan template."
+            : definition.status === "Approved"
+              ? "Sudah lolos review editor."
               : "Menunggu review editor.",
         activityLogs: {
           create: [
             {
-              action: `${sample.runType} article generated`,
+              action:
+                definition.runType === "Automated Manual"
+                  ? "Automated Batch Article Generated"
+                  : definition.runType === "Scheduled"
+                    ? "Scheduled Article Generated"
+                    : "Article Generated",
               previousStatus: null,
               newStatus: "Pending Review",
-              actorName: sample.runType === "Scheduled" ? "System" : sample.editorName,
-              note: "Seed data generated for dashboard preview."
+              actorName: definition.runType === "Manual" ? definition.editorName : "Editor Piket",
+              note: "Draft artikel berhasil dibuat."
             },
-            ...(sample.status !== "Pending Review"
+            {
+              action: "Editorial Note Added",
+              previousStatus: null,
+              newStatus: null,
+              actorName: "System",
+              note: baseNote
+            },
+            {
+              action: "Editor Assigned",
+              previousStatus: null,
+              newStatus: null,
+              actorName: "System",
+              note: `Editor assigned to ${definition.editorName}`
+            },
+            ...(definition.status !== "Pending Review"
               ? [
                   {
-                    action: "Status updated",
+                    action: "Status Changed",
                     previousStatus: "Pending Review",
-                    newStatus: sample.status,
-                    actorName: sample.editorName,
-                    note: sample.status === "Approved" ? "Approved after editorial check." : "Needs headline and paragraph review."
+                    newStatus: definition.status,
+                    actorName: definition.editorName,
+                    note:
+                      definition.status === "Approved"
+                        ? "Artikel disetujui setelah review awal."
+                        : "Perlu revisi kecil pada struktur paragraf."
                   }
                 ]
               : [])
@@ -87,6 +133,23 @@ async function main() {
         }
       }
     });
+
+    if (weather.source_mode === "fallback_sample") {
+      await prisma.errorLog.create({
+        data: {
+          errorType: "seed_fallback_notice",
+          module: "seed",
+          action: "seed_weather_fallback",
+          message: "BMKG live tidak tersedia saat seed, sample data dipakai.",
+          technicalDetails: weather.data_completeness.notes,
+          articleId: article.id,
+          location: definition.location,
+          sourceUrl: weather.source_url,
+          actor: "System",
+          result: "fallback_sample"
+        }
+      });
+    }
   }
 }
 
