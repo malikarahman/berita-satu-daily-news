@@ -9,13 +9,24 @@ export function ensureDatabaseConfiguration() {
 
   if (!databaseUrl) {
     throw new Error(
-      "Konfigurasi database belum ditemukan. Isi DATABASE_URL di file .env sebelum menjalankan dashboard."
+      "Konfigurasi database belum ditemukan. Isi DATABASE_URL untuk lokal atau Vercel sebelum menjalankan dashboard."
     );
   }
 
-  if (!databaseUrl.startsWith("file:")) {
+  const supportedProtocols = [
+    "file:",
+    "postgresql://",
+    "postgres://",
+    "prisma+postgres://"
+  ];
+
+  const isSupported = supportedProtocols.some((protocol) =>
+    databaseUrl.startsWith(protocol)
+  );
+
+  if (!isSupported) {
     throw new Error(
-      "Konfigurasi database lokal belum sesuai. Ganti DATABASE_URL di .env menjadi file:./beritasatu-cuaca.db, lalu jalankan setup database lokal kembali."
+      "Konfigurasi database belum sesuai. Gunakan SQLite file:./beritasatu-cuaca.db untuk lokal atau URL Postgres/Neon untuk deployment."
     );
   }
 }

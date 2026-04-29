@@ -49,7 +49,7 @@ Semua mode generation memakai pipeline yang sama:
 - Next.js App Router
 - TypeScript
 - Prisma
-- SQLite
+- SQLite untuk lokal, Postgres/Neon untuk deployment Vercel
 - Tailwind CSS
 
 ## Struktur penting
@@ -73,8 +73,8 @@ Semua mode generation memakai pipeline yang sama:
 cd /Users/malika/Documents/Playground/berita-satu-daily-news
 cp .env.example .env
 npm install
-npx prisma generate
-npx prisma migrate dev
+npm run prisma:generate
+npm run prisma:migrate
 npm run seed
 npm run dev
 ```
@@ -94,6 +94,8 @@ BMKG_BASE_URL="https://api.bmkg.go.id/publik/prakiraan-cuaca"
 BMKG_SOURCE_URL="https://cuaca.bmkg.go.id/"
 SCHEDULE_ENABLED="false"
 ```
+
+Untuk deployment Vercel, set `DATABASE_URL` ke URL Postgres/Neon. Build script akan otomatis memilih schema Prisma Postgres dan menjalankan `prisma db push` saat build.
 
 ## Cara test
 
